@@ -1,0 +1,58 @@
+#!/bin/sh
+
+# Calls a Polygon checker named 'checker', which has the following usage:
+# $0 <test data> <team output> <jury answer>
+# with exit codes:
+# - 0 = success
+# - 1 = wrong answer
+# - 2 = presentation error
+# - 3 = failure (internal error, or incorrect jury answer, or participant found better answer)
+# - 4 = dirt (something wrong in the output)
+# - 7 = points
+# - 8 = unexpected EOF
+# - 16 and above = partially correct
+#
+# using the DOMJudge usage convention:
+# $0 <test data> <jury answer> <feedback_dir> < <team output>
+# with exit code:
+# - 1 if an internal error occurs,
+# - 42 if the team output is a correct output,
+# - 43 if the team output is incorrect.
+#
+# Polygon codes 7 and 16, which use fractional points, are not supported.
+#
+# Inspired by the "boolfind_cmp" DOMjudge example.
+
+SCRIPT=$(readlink -f "$0")
+SCRIPTPATH=$(dirname "$SCRIPT")
+CHECK_PROGRAM="${SCRIPTPATH}/checker"
+
+if [ ! -x "$CHECK_PROGRAM" ]; then
+	echo "Error: '$CHECK_PROGRAM' not found or executable." >&2
+	echo "Internal error"
+	exit 1
+fi
+
+TESTDATA="$1"
+JURYANSWER="$2"
+
+TEAMOUTPUT=$(mktemp)
+# Write stdin to a file, from https://stackoverflow.com/a/36314570
+IFS= read -t 0.01 -r -d '' INDATA
+printf "%s" "$INDATA" > "$TEAMOUTPUT"
+
+# Run the Polygon checker
+"$CHECK_PROGRAM" $TESTDATA $TEAMOUTPUT $JURYANSWER
+EXITCODE=$?
+
+if [ $EXITCODE -eq 0 ]; then
+	exit 42
+fi
+
+if [ $EXITCODE -eq 1 ] || [ $EXITCODE -eq 2 ] || [ $EXITCODE -eq 4] || [ $EXITCODE -eq 8 ]; then
+	exit 43
+fi
+
+echo "Error: '$CHECK_PROGRAM' exited with exitcode $EXITCODE." >&2
+echo "Internal error"
+exit 1
