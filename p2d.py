@@ -33,6 +33,7 @@ parser.add_argument('-o','--output', type=str, help='Output Package directory')
 parser.add_argument('--no-delete', action='store_true', help='Don\'t delete the output directory')
 parser.add_argument('--add-html', action='store_true', help='Add Problem statement in HTML form')
 parser.add_argument('--ext', type=str, help='Set extension for the OUTPUT files in testset')
+parser.add_argument('--custom-checker', action='store_true', help='Treat checker as non-standard: create domjudge checker from it')
 args = parser.parse_args()
 if args.code:
 	PROBCODE = args.code
@@ -95,56 +96,53 @@ problem_name = root.find('names').find('name').attrib['value']
 timelimit = int(math.ceil(float(root.find('judging').find('testset').find('time-limit').text)/1000.0))
 
 
-checker = root.find('assets').find('checker')
 checker_name = None
-if checker is not None:
-    checker_source = checker.find('source')
-    if checker_source.attrib['type'].startswith('cpp.g++'):
-        TEMP_DIR = tempfile.gettempdir() + '/polygon2domjudge'
-        ensure_dir(TEMP_DIR)
-        TESTLIB_PATH = TEMP_DIR + '/testlib.h'
+if args.custom_checker:
+	checker = root.find('assets').find('checker')
+	checker_source = checker.find('source')
+	if checker_source.attrib['type'].startswith('cpp.g++'):
+		TEMP_DIR = tempfile.gettempdir() + '/polygon2domjudge'
+		ensure_dir(TEMP_DIR)
+		TESTLIB_PATH = TEMP_DIR + '/testlib.h'
 
-        # Download testlib, unless it already exists and was downloaded < 1d ago
-        if os.path.exists(TESTLIB_PATH) and (time.time() - os.path.getmtime(TESTLIB_PATH)) > 60 * 60 * 24:
-            os.remove(TESTLIB_PATH)
-        if not os.path.exists(TESTLIB_PATH):
-            print('Downloading testlib...')
-            TESTLIB_ONLINE_PATH = 'https://raw.githubusercontent.com/MikeMirzayanov/testlib/master/testlib.h'
-            if sys.version_info >= (3,):
-                import urllib.request as urllib
-            else:
-                import urllib
-            urllib.urlretrieve(TESTLIB_ONLINE_PATH, TESTLIB_PATH)
+		# Download testlib, unless it already exists and was downloaded < 1d ago
+		if os.path.exists(TESTLIB_PATH) and (time.time() - os.path.getmtime(TESTLIB_PATH)) > 60 * 60 * 24:
+			os.remove(TESTLIB_PATH)
+		if not os.path.exists(TESTLIB_PATH):
+			print('Downloading testlib...')
+			TESTLIB_ONLINE_PATH = 'https://raw.githubusercontent.com/MikeMirzayanov/testlib/master/testlib.h'
+			import urllib
+			urllib.urlretrieve(TESTLIB_ONLINE_PATH, TESTLIB_PATH)
 
-        CHECKER_DIR = TEMP_DIR + '/checker'
-        ensure_dir(CHECKER_DIR)
-        copyfile(TESTLIB_PATH, CHECKER_DIR + '/testlib.h')
-        copyfile('./checker/build', CHECKER_DIR + '/build')
-        copyfile('./checker/run', CHECKER_DIR + '/run')
-        copyfile(PACKAGE_DIR + '/' + checker_source.attrib['path'], CHECKER_DIR + '/checker.cpp')
+		CHECKER_DIR = TEMP_DIR + '/checker'
+		ensure_dir(CHECKER_DIR)
+		copyfile(TESTLIB_PATH, CHECKER_DIR + '/testlib.h')
+		copyfile('./checker/build', CHECKER_DIR + '/build')
+		copyfile('./checker/run', CHECKER_DIR + '/run')
+		copyfile(PACKAGE_DIR + '/' + checker_source.attrib['path'], CHECKER_DIR + '/checker.cpp')
 
-        make_archive(TEMP_DIR + '/checker', 'zip', CHECKER_DIR)
+		make_archive(TEMP_DIR + '/checker', 'zip', CHECKER_DIR)
 
-        with open(TEMP_DIR + '/checker.zip', 'rb') as archive:
-            archive_bin = archive.read()
-        archive_hex = binascii.hexlify(archive_bin)
+		with open(TEMP_DIR + '/checker.zip', 'rb') as archive:
+			archive_bin = archive.read()
+		archive_hex = binascii.hexlify(archive_bin)
 
-        hasher = hashlib.md5()
-        hasher.update(archive_bin)
-        archive_md5 = hasher.hexdigest()
+		hasher = hashlib.md5()
+		hasher.update(archive_bin)
+		archive_md5 = hasher.hexdigest()
 
-        checker_name = package_name + '-checker'
+		checker_name = package_name + '-checker'
 
-        # REPLACE INTO will delete then insert, but that's ok since executables aren't referred to via foreign keys
-        sql_statement = "REPLACE INTO executable(execid, md5sum, zipfile, type) VALUES ('" + checker_name + "', 0x" + archive_md5 + ", 0x" + archive_hex + ", 'compare');"
-        with open(OUTPUT_PATH + '/' + package_name + '-domjudge.sql', 'w') as sql:
-            sql.write(sql_statement)
-        print('WARNING: Package ' + package_name + ' contains a custom checker. Make sure you run the generated sql BEFORE importing the problem.')
+		# REPLACE INTO will delete then insert, but that's ok since executables aren't referred to via foreign keys
+		sql_statement = "REPLACE INTO executable(execid, md5sum, zipfile, type) VALUES ('" + checker_name + "', 0x" + archive_md5 + ", 0x" + archive_hex + ", 'compare');"
+		with open(OUTPUT_PATH + '/' + package_name + '-domjudge.sql', 'w') as sql:
+			sql.write(sql_statement)
+		print('WARNING: Package ' + package_name + ' contains a custom checker. Make sure you run the generated sql BEFORE importing the problem.')
 
-        rmtree(CHECKER_DIR)
-        os.remove(TEMP_DIR + '/checker.zip')
-    else:
-        print('ERROR: Package ' + package_name + ' contains a custom checker not written in C++. This is not supported by the script.')
+		rmtree(CHECKER_DIR)
+		os.remove(TEMP_DIR + '/checker.zip')
+	else:
+		print('ERROR: Package ' + package_name + ' contains a custom checker not written in C++. This is not supported by the script.')
 
 desc = open(OUTPUT_DIR+'domjudge-problem.ini','w+')
 desc.write("probid='"+PROBCODE+"'\n")
@@ -152,7 +150,7 @@ desc.write("name='"+problem_name.replace("'","`")+"'\n")
 desc.write("timelimit='"+str(timelimit)+"'\n")
 desc.write("color='"+PROBCOLOR+"'\n")
 if checker_name is not None:
-    desc.write("special_compare='" + checker_name + "'\n")
+	desc.write("special_compare='" + checker_name + "'\n")
 desc.close()
 
 tests = filter(lambda x:not x.endswith(EXTENSION_FOR_OUTPUT),os.listdir(PACKAGE_DIR+'/tests'))
