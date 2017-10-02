@@ -13,6 +13,7 @@ def ensure_no_dir(s):
 
 
 PACKAGE_DIR='poly/'
+PACKAGE2_DIR='poly2/'
 OUTPUT_PATH='.'
 OUTPUT_DIR=OUTPUT_PATH+'/domjudge/'
 EXTENSION_FOR_OUTPUT = '.a'
@@ -32,6 +33,7 @@ parser.add_argument('--color', type=str, help='problem color for domjudge (in RR
 parser.add_argument('-o','--output', type=str, help='Output Package directory')
 parser.add_argument('--no-delete', action='store_true', help='Don\'t delete the output directory')
 parser.add_argument('--add-html', action='store_true', help='Add Problem statement in HTML form')
+parser.add_argument('--pdf-from', type=str, help='Use PDF statement from the given archive instead (work around polygon bad pdf generation)')
 parser.add_argument('--ext', type=str, help='Set extension for the OUTPUT files in testset')
 parser.add_argument('--custom-checker', action='store_true', help='Treat checker as non-standard: create domjudge checker from it')
 args = parser.parse_args()
@@ -64,15 +66,20 @@ if args.no_delete:
 
 package_name = os.path.splitext(os.path.basename(args.package))[0]
 
-#Extracting the package
-import zipfile
-if not os.path.isfile(args.package):
-	print "[ERROR] PACKAGE ZIP NOT FOUND"
-	exit(1)
-zip_ref = zipfile.ZipFile(args.package, 'r')
-ensure_no_dir(PACKAGE_DIR)
-zip_ref.extractall(PACKAGE_DIR)
-zip_ref.close()
+#Extracting the packages
+def extract(pkg, output):
+	import zipfile
+	if not os.path.isfile(pkg):
+		print "[ERROR] " + pkg + " NOT FOUND"
+		exit(1)
+	zip_ref = zipfile.ZipFile(pkg, 'r')
+	ensure_no_dir(output)
+	zip_ref.extractall(output)
+	zip_ref.close()
+
+extract(args.package, PACKAGE_DIR)
+if args.pdf_from:
+	extract(args.pdf_from, PACKAGE2_DIR)
 
 #Create the OUTPUT DIR
 ensure_no_dir(OUTPUT_DIR)
@@ -166,13 +173,20 @@ jury_solutions = filter(lambda x : not x.endswith(EXTENSION_FOR_DESC), os.listdi
 for solution in jury_solutions:
     copyfile(PACKAGE_DIR + '/solutions/' + solution, OUTPUT_DIR + '/submissions/' + solution)
 
-statements = os.listdir(PACKAGE_DIR + '/statements/.pdf/english')
+
+pdf_dir = PACKAGE_DIR
+if args.pdf_from:
+	pdf_dir = PACKAGE2_DIR
+
+statements = os.listdir(pdf_dir + '/statements/.pdf/english')
 assert len(statements) == 1 #there should be exactly one english pdf
 for statement in statements:
-    copyfile(PACKAGE_DIR + '/statements/.pdf/english/' + statement, OUTPUT_DIR + '/' + statement)
+    copyfile(pdf_dir + '/statements/.pdf/english/' + statement, OUTPUT_DIR + '/' + statement)
 
 #ZIP the OUTPUT and DELETE Temp
 make_archive(OUTPUT_PATH + '/' + package_name + '-domjudge', 'zip', OUTPUT_DIR)
 rmtree(PACKAGE_DIR)
+if args.pdf_from:
+	rmtree(PACKAGE2_DIR)
 if nodelete == False:
 	rmtree(OUTPUT_DIR)
