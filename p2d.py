@@ -1,4 +1,4 @@
-#/bin/python
+#!/usr/bin/env python
 import argparse,binascii,hashlib,os,math,tempfile,time,sys
 from shutil import copyfile,make_archive,rmtree
 import xml.etree.ElementTree
