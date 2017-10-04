@@ -126,7 +126,9 @@ if args.custom_checker:
 		ensure_dir(CHECKER_DIR)
 		copyfile(TESTLIB_PATH, CHECKER_DIR + '/testlib.h')
 		copyfile(SCRIPT_DIR + '/checker/build', CHECKER_DIR + '/build')
+		os.chmod(CHECKER_DIR + '/build', 0777)
 		copyfile(SCRIPT_DIR + '/checker/run', CHECKER_DIR + '/run')
+		os.chmod(CHECKER_DIR + '/run', 0777)
 		copyfile(PACKAGE_DIR + '/' + checker_source.attrib['path'], CHECKER_DIR + '/checker.cpp')
 
 		make_archive(TEMP_DIR + '/checker', 'zip', CHECKER_DIR)
