@@ -180,7 +180,8 @@ if args.pdf_from:
 	pdf_dir = PACKAGE2_DIR
 
 statements = os.listdir(pdf_dir + '/statements/.pdf/english')
-assert len(statements) == 1 #there should be exactly one english pdf
+if len(statements) != 1:
+	print('WARNING: ' + package_name + ' has multiple statements.')
 for statement in statements:
     copyfile(pdf_dir + '/statements/.pdf/english/' + statement, OUTPUT_DIR + '/' + statement)
 
