@@ -121,11 +121,12 @@ if args.custom_checker:
 			import urllib
 			urllib.urlretrieve(TESTLIB_ONLINE_PATH, TESTLIB_PATH)
 
+		SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
 		CHECKER_DIR = TEMP_DIR + '/checker'
 		ensure_dir(CHECKER_DIR)
 		copyfile(TESTLIB_PATH, CHECKER_DIR + '/testlib.h')
-		copyfile('./checker/build', CHECKER_DIR + '/build')
-		copyfile('./checker/run', CHECKER_DIR + '/run')
+		copyfile(SCRIPT_DIR + '/checker/build', CHECKER_DIR + '/build')
+		copyfile(SCRIPT_DIR + '/checker/run', CHECKER_DIR + '/run')
 		copyfile(PACKAGE_DIR + '/' + checker_source.attrib['path'], CHECKER_DIR + '/checker.cpp')
 
 		make_archive(TEMP_DIR + '/checker', 'zip', CHECKER_DIR)
