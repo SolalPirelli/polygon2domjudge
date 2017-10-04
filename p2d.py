@@ -142,7 +142,7 @@ if args.custom_checker:
 		checker_name = package_name + '-checker'
 
 		# REPLACE INTO will delete then insert, but that's ok since executables aren't referred to via foreign keys
-		sql_statement = "REPLACE INTO executable(execid, md5sum, zipfile, type) VALUES ('" + checker_name + "', 0x" + archive_md5 + ", 0x" + archive_hex + ", 'compare');"
+		sql_statement = "REPLACE INTO domjudge.executable(execid, md5sum, zipfile, type) VALUES ('" + checker_name + "', 0x" + archive_md5 + ", 0x" + archive_hex + ", 'compare');"
 		with open(OUTPUT_PATH + '/' + package_name + '-domjudge.sql', 'w') as sql:
 			sql.write(sql_statement)
 		print('WARNING: Package ' + package_name + ' contains a custom checker. Make sure you run the generated sql BEFORE importing the problem.')
