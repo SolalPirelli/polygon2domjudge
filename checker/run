@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Calls a Polygon checker named 'checker', which has the following usage:
 # $0 <test data> <team output> <jury answer>

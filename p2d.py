@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import argparse,binascii,hashlib,os,math,tempfile,time,sys
+import argparse,binascii,hashlib,os,math,tempfile,time,shutil,subprocess,sys
 from shutil import copyfile,make_archive,rmtree
 import xml.etree.ElementTree
 
@@ -13,7 +13,7 @@ def ensure_no_dir(s):
 
 
 PACKAGE_DIR='poly/'
-PACKAGE2_DIR='poly2/'
+TEMP_DIR = tempfile.gettempdir() + '/polygon2domjudge'
 OUTPUT_PATH='.'
 OUTPUT_DIR=OUTPUT_PATH+'/domjudge/'
 EXTENSION_FOR_OUTPUT = '.a'
@@ -33,7 +33,7 @@ parser.add_argument('--color', type=str, help='problem color for domjudge (in RR
 parser.add_argument('-o','--output', type=str, help='Output Package directory')
 parser.add_argument('--no-delete', action='store_true', help='Don\'t delete the output directory')
 parser.add_argument('--add-html', action='store_true', help='Add Problem statement in HTML form')
-parser.add_argument('--pdf-from', type=str, help='Use PDF statement from the given archive instead (work around polygon bad pdf generation)')
+parser.add_argument('--pdf-from-latex', action='store_true', help='Create a PDF from the LaTeX file (work around polygon bad pdf generation)')
 parser.add_argument('--ext', type=str, help='Set extension for the OUTPUT files in testset')
 parser.add_argument('--custom-checker', action='store_true', help='Treat checker as non-standard: create domjudge checker from it')
 args = parser.parse_args()
@@ -78,8 +78,6 @@ def extract(pkg, output):
 	zip_ref.close()
 
 extract(args.package, PACKAGE_DIR)
-if args.pdf_from:
-	extract(args.pdf_from, PACKAGE2_DIR)
 
 #Create the OUTPUT DIR
 ensure_no_dir(OUTPUT_DIR)
@@ -108,7 +106,6 @@ if args.custom_checker:
 	checker = root.find('assets').find('checker')
 	checker_source = checker.find('source')
 	if checker_source.attrib['type'].startswith('cpp.g++'):
-		TEMP_DIR = tempfile.gettempdir() + '/polygon2domjudge'
 		ensure_dir(TEMP_DIR)
 		TESTLIB_PATH = TEMP_DIR + '/testlib.h'
 
@@ -177,20 +174,56 @@ for solution in jury_solutions:
     copyfile(PACKAGE_DIR + '/solutions/' + solution, OUTPUT_DIR + '/submissions/' + solution)
 
 
-pdf_dir = PACKAGE_DIR
-if args.pdf_from:
-	pdf_dir = PACKAGE2_DIR
+if args.pdf_from_latex:
+	ensure_dir(TEMP_DIR)
 
-statements = os.listdir(pdf_dir + '/statements/.pdf/english')
-if len(statements) != 1:
-	print('WARNING: ' + package_name + ' has multiple statements.')
-for statement in statements:
-    copyfile(pdf_dir + '/statements/.pdf/english/' + statement, OUTPUT_DIR + '/' + statement)
+	OLYMP_PATH = TEMP_DIR + '/olymp.sty'
+	# Download olymp.sty, unless it already exists and was downloaded < 1d ago
+	if os.path.exists(OLYMP_PATH) and (time.time() - os.path.getmtime(OLYMP_PATH)) > 60 * 60 * 24:
+		os.remove(OLYMP_PATH)
+	if not os.path.exists(OLYMP_PATH):
+		print('Downloading olymp...')
+		OLYMP_ONLINE_PATH = 'https://raw.githubusercontent.com/GassaFM/olymp.sty/master/statements/olymp.sty'
+		import urllib
+		urllib.urlretrieve(OLYMP_ONLINE_PATH, OLYMP_PATH)
+
+	SCRIPT_DIR = os.path.dirname(os.path.realpath(sys.argv[0]))
+
+	PDF_DIR = TEMP_DIR + '/pdf'
+	ensure_dir(PDF_DIR)
+
+	# concat header + problem + footer into a single file
+	TEX_FILE = PDF_DIR + '/problem.tex'
+	with open(TEX_FILE, 'w') as tfile:
+		with open(SCRIPT_DIR + '/tex/header.tex') as header:
+			shutil.copyfileobj(header, tfile)
+		# fix problem number
+		tfile.write(r'\addtocounter{problem}{'+ str(ord(PROBCODE) - ord('A')) +'}')
+		with open(PACKAGE_DIR + 'statements/english/problem.tex') as statement:
+			shutil.copyfileobj(statement, tfile)
+		with open(SCRIPT_DIR + '/tex/footer.tex') as footer:
+			shutil.copyfileobj(footer, tfile)
+
+	copyfile(OLYMP_PATH, PDF_DIR + '/olymp.sty')
+
+	FNULL = open(os.devnull, 'w')
+	texproc = subprocess.Popen(['pdflatex', 'problem.tex'], cwd=PDF_DIR, stdout=FNULL, stderr=FNULL)
+	texproc.wait()
+	if texproc.returncode != 0:
+		sys.exit('ERROR while building latex file. Make sure you have pdflatex installed.')
+
+	copyfile(PDF_DIR + '/problem.pdf', OUTPUT_DIR + '/problem.pdf')	
+
+	rmtree(PDF_DIR)
+else:
+	statements = os.listdir(PACKAGE_DIR + '/statements/.pdf/english')
+	if len(statements) != 1:
+		print('WARNING: ' + package_name + ' has multiple statements.')
+	for statement in statements:
+		copyfile(PACKAGE_DIR + '/statements/.pdf/english/' + statement, OUTPUT_DIR + '/' + statement)
 
 #ZIP the OUTPUT and DELETE Temp
 make_archive(OUTPUT_PATH + '/' + package_name + '-domjudge', 'zip', OUTPUT_DIR)
 rmtree(PACKAGE_DIR)
-if args.pdf_from:
-	rmtree(PACKAGE2_DIR)
 if nodelete == False:
 	rmtree(OUTPUT_DIR)
