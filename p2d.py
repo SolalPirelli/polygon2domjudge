@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import argparse,binascii,hashlib,os,math,tempfile,time,shutil,subprocess,sys
+from distutils.dir_util import copy_tree
 from shutil import copyfile,make_archive,rmtree
 import xml.etree.ElementTree
 
@@ -99,7 +100,7 @@ ensure_dir(OUTPUT_DIR + '/submissions')
 root = xml.etree.ElementTree.parse(PACKAGE_DIR+'problem.xml').getroot()
 problem_name = root.find('names').find('name').attrib['value']
 timelimit = int(math.ceil(float(root.find('judging').find('testset').find('time-limit').text)/1000.0))
-
+print('TIME LIMIT IS ' + str(timelimit))
 
 checker_name = None
 if args.custom_checker:
@@ -192,6 +193,9 @@ if args.pdf_from_latex:
 	PDF_DIR = TEMP_DIR + '/pdf'
 	ensure_dir(PDF_DIR)
 
+	# copy all files in case there are images or other kinds of included stuff
+	copy_tree(PACKAGE_DIR + 'statements/english', PDF_DIR)
+
 	# concat header + problem + footer into a single file
 	TEX_FILE = PDF_DIR + '/problem.tex'
 	with open(TEX_FILE, 'w') as tfile:
@@ -206,8 +210,7 @@ if args.pdf_from_latex:
 
 	copyfile(OLYMP_PATH, PDF_DIR + '/olymp.sty')
 
-	FNULL = open(os.devnull, 'w')
-	texproc = subprocess.Popen(['pdflatex', 'problem.tex'], cwd=PDF_DIR, stdout=FNULL, stderr=FNULL)
+	texproc = subprocess.Popen(['pdflatex', 'problem.tex'], cwd=PDF_DIR)
 	texproc.wait()
 	if texproc.returncode != 0:
 		sys.exit('ERROR while building latex file. Make sure you have pdflatex installed.')
